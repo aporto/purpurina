@@ -1,19 +1,74 @@
-int pin = 1;
-char bits[16];
 
 // Pins used as address lines
-#define ADDR_0    2
-#define ADDR_1    4
-#define ADDR_2    7
-#define ADDR_3    8
+#define ADDR_0                2
+#define ADDR_1                4
+#define ADDR_2                7
+#define ADDR_3                8
 
-unsigned char addBit[4] = {0,0,0,0};
-int pos = 0;
-unsigned char imageLine[32];
-unsigned char colorPin[6] = {3,5,6,9,10,11};
+// Pins used as data output
+#define PIN_0                3
+#define PIN_1                5
+#define PIN_2                6
+#define PIN_3                9
+#define PIN_4                10
+#define PIN_5                11
+
+// Pins used as command input
+#define CMD_CALIBRATE        A0
+#define CMD_START            A1
+
+//******************************************************************************
+// Begin of data created via automated code generation
+
+#define INVERT_DATA           1
+#define NUM_LINES             32
+#define NUM_COLS              6
+#define NUM_PIXELS            576
+unsigned char img_data[NUM_PIXELS] = {
+    255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 
+    ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 
+    ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 ,255,0,0 ,0,255,0 ,0,0,255 
+    ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 ,255,255,0 
+    ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 ,0,255,255 
+    ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 ,255,0,255 
+    };
+
+// End of data created via automated code generation
+//******************************************************************************
+
+unsigned char color_pins[6] = {3, 5, 6, 9, 10, 11};
+int current_line = 0;
+int data_idx = 0;
+
+//******************************************************************************
+
+void writeColorValue(unsigned char pin, unsigned char value)
+{
+    if (INVERT_DATA) {
+        analogWrite(color_pins[pin], 255 - value);
+    } else {
+        analogWrite(color_pins[pin], value);
+    }
+}
+ 
+//******************************************************************************
+ 
+ void setMuxAddress(unsigned char addr) {
+    unsigned char addr_bit[4] = {0, 0, 0, 0};
+    addr_bit[0] = (addr & 1) == 1;
+    addr_bit[1] = (addr & 2) == 2;
+    addr_bit[2] = (addr & 4) == 4;
+    addr_bit[3] = (addr & 8) == 8;
+    digitalWrite(ADDR_0, addr_bit[0]);
+    digitalWrite(ADDR_1, addr_bit[1]);
+    digitalWrite(ADDR_2, addr_bit[2]);
+    digitalWrite(ADDR_3, addr_bit[3]);
+}
+
+//******************************************************************************
 
 void setup() {               
-    memset (imageLine, 0, sizeof(imageLine));
+    //memset (imageLine, 0, sizeof(imageLine));
     pinMode(ADDR_0, OUTPUT);    
     pinMode(ADDR_1, OUTPUT);    
     pinMode(ADDR_2, OUTPUT);    
@@ -23,59 +78,27 @@ void setup() {
     digitalWrite(ADDR_0, LOW);
     digitalWrite(ADDR_0, LOW);
     digitalWrite(ADDR_0, LOW);
+    
+    for (int i=0; i < 6; i++) {
+        writeColorValue(0, 0);
+    }
 
     Serial.begin(9600);
     
-    analogWrite(colorPin[0], 255);
-    
-
+    //analogWrite(colorPin[0], 255);
 }
 
-void getImageLine(void)
-{
-    unsigned char colorOutput[6] = {0, 0, 0, 0};
+//******************************************************************************
 
-    imageLine[0] = 255;
-    imageLine[1] = 0;
-    imageLine[2] = 0;
-    
-    imageLine[3] = 0;
-    imageLine[4] = 255;
-    imageLine[5] = 0;
-    
-    imageLine[6] = 0;
-    imageLine[7] = 0;
-    imageLine[8] = 255;
-    
-    imageLine[9] = 0;    
-    imageLine[10] = 255;
-    imageLine[11] = 255;
-}
+void loop() {  
+    setMuxAddress(current_line);
 
-void loop() {
-    getImageLine();   
-    pos++;
-    if (pos == 16) { pos = 0; }
+    for (unsigned char i=0; i < 6; i++) {
+        writeColorValue(i, img_data[data_idx + current_line + i*16]);    
+    }    
     
-  unsigned char colorOutput[6] = {0, 0, 0, 0};
-  
-    unsigned char addrBit[4] = {0, 0, 0, 0};
-    addrBit[0] = (pos & 1) == 1;
-    addrBit[1] = (pos & 2) == 2;
-    addrBit[2] = (pos & 4) == 4;
-    addrBit[3] = (pos & 8) == 8;
-    digitalWrite(ADDR_0, addrBit[0]);
-    digitalWrite(ADDR_1, addrBit[1]);
-    digitalWrite(ADDR_2, addrBit[2]);
-    digitalWrite(ADDR_3, addrBit[3]);
-    
-    for (int i=0; i < 6; i++) {
-        int color = imageLine[pos];
-        analogWrite(colorPin[i], 255 - color);        
-    } 
-    
-    //char txt[100];
-   // sprintf(txt, "%d: %d, %d, %d, %d\n", pos, addrBit[0], addrBit[1], addrBit[2], addrBit[3]);
-   // Serial.print(txt);
-   // delay(1000);
+    current_line++;
+    if (current_line >= 16) {
+        current_line = 0;
+    }
 }
