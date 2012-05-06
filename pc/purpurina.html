@@ -1,50 +1,195 @@
 <html>
 <head>
-
+<title>Purpurina image generator</title>
 </head>
 <body>
 
 <script type="text/javascript"> 
-	/*function processImage()
+	function compactColor(r, g, b)
 	{
-		element = document.getElementById("canvas1"); 
-		c = element.getContext("2d"); 
-		width = parseInt(element.getAttribute("width")); 
-		height = parseInt(element.getAttribute("height")); 
-		imageData = c.createImageData(width, height);
-	
-		index = (x + y * imageData.width) * 4;
-		r = imageData.data[index+0];
-		g = imageData.data[index+1];
-		b = imageData.data[index+2];
+		var rgb = b | (g << 8) | (r << 16);
+		var str = rgb.toString(16).toUpperCase();
+		
+		if (str == "FF0000") return 1; //red
+		if (str == "FF00") return 2; // green
+		if (str == "FF") return 3; // blue		
+		if (str == "FFFF00") return 4; // yellow
+		if (str == "FF00FF") return 5; // magenta
+		if (str == "FFFF") return 6; // cyan		
+		if (str == "FFFFFF") return 7; // white
+		
+		return 0;		// every other combination is prohibited, so color will be black
 	}
-	*/
-	function loadPicture()
+	
+	function processImage()
+	{
+		canvas1 = document.getElementById("canvas1"); 
+		canvas2 = document.getElementById("canvas2"); 		
+		ctx1 = canvas1.getContext("2d"); 
+		ctx2 = canvas2.getContext("2d"); 
+		w = parseInt(canvas1.getAttribute("width")); 
+		h = parseInt(canvas1.getAttribute("height")); 		
+		//canvas2.width = w;
+		//canvas2.height = h;		
+		imageData1 = ctx1.getImageData(0, 0, canvas1.width, canvas1.height);
+		imageData2 = ctx2.getImageData(0, 0, canvas2.width, canvas2.height);
+		//imageData2 = ctx2.createImageData(width, height);
+		if ((h % 2)) {
+			alert("Oooops\n\nYour image SHALL contain a EVEN number of lines!");
+			return;
+		}
+		
+		var pixelCount = w * h;
+		
+		var html = "#define INVERT_DATA               1\n";
+		html += "#define STEP_BY_STEP_OH_BABY      0\n";
+		html += "#define NUM_LINES                 " + h.toString() + "\n";
+		html += "#define NUM_COLS                  " + w.toString()+ "\n";
+		//html += "#define LINE_SIZE                 " + (h * 3).toString()+ "\n";
+		html += "#define LINE_SIZE                 " + (h / 2).toString()+ "\n";
+		//html += "#define NUM_PIXELS                " + (w * h * 3).toString()+ "\n";
+		html += "#define NUM_PIXELS                " + (w * h / 2).toString()+ "\n";
+		html += "PROGMEM prog_uchar img_data[NUM_PIXELS] = {\n";
+		
+		var lsb = true;
+		var byte = 0;
+		
+		for (var x=0; x < w; x++) {
+			html += "    ";
+			for (var y=0; y < h; y++) {
+				index = (y * w + x) * 4;
+				r = imageData1.data[index+0];
+				g = imageData1.data[index+1];
+				b = imageData1.data[index+2];
+				
+				color = compactColor(r, g, b);
+				if (color > 0) {
+					imageData2.data[index+0] = r;
+					imageData2.data[index+1] = g;
+					imageData2.data[index+2] = b;
+				} else {				
+					imageData2.data[index+0] = 0;
+					imageData2.data[index+1] = 0;
+					imageData2.data[index+2] = 0;
+				}
+				
+				if (lsb) {
+					byte = color;
+				} else {
+					byte = byte | (color << 4);
+					str = byte.toString();
+					if (str.length == 1) {
+						str = "  " + str;
+					} else {
+						if (str.length == 2) {
+							str = " " + str;
+						}
+					}
+					html += str;
+					
+					if (!((x == w-1) && (y == h-1))) {
+						html += ",";
+					}					
+					byte = 0;
+				}
+				lsb = !(lsb);
+			}
+			html += "\n";		
+		}
+		
+		ctx2.putImageData(imageData2, 0, 0);
+		
+		html += "};";
+		codediv = document.getElementById("purpurina_code"); 		
+		codehtml ="<p>This is the contents of file 'purpurina_image.h', that geneates the image above.<br>";
+		codehtml +="   1) Open the sketch 'purpurina.ino' on yout Arduino IDE <br>";
+		codehtml +="   2) Copy and paste this code into 'purpurina_image.h' file<br>"
+		codehtml +="   3) Compile it and upload to your Arduino board<p>";
+		codehtml += '<form id="codeform"> <textarea id="hiddencode" cols="100" rows="20"></textarea> </form>';	
+		codediv.innerHTML = codehtml;
+		
+		//arrow = document.getElementById("arrow"); 		
+		//arrow.style.visibility="visible";
+		
+		txt1 = document.getElementById("txt1"); 		
+		txt1.innerHTML = "Your image:"
+		
+		txt2 = document.getElementById("txt2"); 		
+		txt2.innerHTML = "How it will appear on Purpurina:"
+		
+		codeform = document.getElementById("hiddencode"); 
+		codeform.innerHTML = html;
+		codeform.select();
+		codeform.focus();		
+	}
+	
+	function afterImageIsLoaded(evt)
+	{
+		var canvas1 = document.getElementById("canvas1");
+		var context1 = canvas1.getContext("2d");		
+		canvas1.width = evt.target.width;
+		canvas1.height = evt.target.height;		
+		context1.drawImage(evt.target, 0, 0);			
+		
+		var canvas2 = document.getElementById("canvas2");
+		var context2 = canvas2.getContext("2d");		
+		canvas2.width = evt.target.width;
+		canvas2.height = evt.target.height;		
+		context2.drawImage(evt.target, 0, 0);	
+		
+		processImage();
+	}
+
+	function OnLoadingPicture(evt)
+	{
+		var data = evt.target.result;
+		var pict = new Image();
+		pict.onload = afterImageIsLoaded;
+		pict.src = data; // in URL data format					
+	}
+	
+	function loadPicture(evt)
+	{
+		var f = evt.target.files[0];
+		var reader = new FileReader();
+		reader.onload = OnLoadingPicture;
+		reader.readAsDataURL(f);
+	}	
+
+	function init_purpurina()
 	{
 		//alert(1);
-		var element = document.getElementById("imagediv"); 
-		var file = document.getElementById("filename").value; 
-		alert(1);
-		document.getElementById("path").value = file; 
-		alert(document.getElementById("path").value);
-		//alert(document.mainform.datafile.value);
-		var txt = '<img src="' + file + '">';
-		element.innerHTML = txt;
-		alert(file);
+		document.getElementById("datafile").addEventListener('change',loadPicture, false);
 	}
+
+	window.onload = init_purpurina;	
 </script>
 
-<canvas id="canvas1" width="100", height="100"></canvas>
-
-<div id="imagediv"></div>
 
 <form id="mainform">
-	<p>
-	Please specify a file, or a set of files:<br>
-	<input type="file" name="datafile" size="40" id="filename" onchange="loadPicture()">
-	<input type="button" onclick="loadPicture()">
-	<input type="hidden" id="path">
+	<p>	 
+	Please select the image for Purpurina:<br>	
+	<input type="file" id="datafile" name="datafile" size="40" id="filename">		
 	</p>	
 </form>
+Please note that only the following colors are allowed:</br>
+<img id="arrow" src="allowed_colors.png"></br>
+</br>
+<table>
+<tr>
+<td>
+<p id="txt1"></p>
+<canvas id="canvas1" width="100", height="32"></canvas></td>
+</tr><tr>
+<td></br></td>
+</tr><tr>
+<td><p id="txt2"></p><canvas id="canvas2" width="100", height="32"></canvas></td>
+</tr>
+</table>
+</br>
+
+<div id="purpurina_code"> 
+
+</div>	
 </body>
 </html>
